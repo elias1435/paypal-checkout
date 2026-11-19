@@ -1,5 +1,5 @@
 export const config = {
-  env: process.env.PAYPAL_ENV === "live" ? "live" : "sandbox",
+  env: ["live", "production"].includes((process.env.PAYPAL_ENV ?? "").trim().toLowerCase()) ? "live" : "sandbox",
   clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? "",
   secret: process.env.PAYPAL_CLIENT_SECRET ?? "",
   currency: (process.env.CURRENCY ?? "ILS").toUpperCase(),
