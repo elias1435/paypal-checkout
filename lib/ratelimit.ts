@@ -21,14 +21,15 @@ export function clientIp(req: Request): string {
   );
 }
 
-/** Rejects cross-site POSTs (basic CSRF protection). */
-export function sameOrigin(req: Request): boolean {
-  const origin = req.headers.get("origin");
-  if (!origin) return true; // same-origin form posts from some browsers omit it; cookie is SameSite=Strict anyway
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
+/**
+ * True when the browser says the request came from another website.
+ * Uses Sec-Fetch-Site, which (unlike Host/Origin) is not changed by reverse proxies.
+ */
+export function isCrossSite(req: Request): boolean {
+  return req.headers.get("sec-fetch-site") === "cross-site";
+}
+
+/** Relative redirect, so it works behind proxies that rewrite the host. */
+export function redirect303(location: string): Response {
+  return new Response(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store" } });
 }

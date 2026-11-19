@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth";
-import { sameOrigin } from "@/lib/ratelimit";
 
-export async function POST(req: Request) {
-  const res = NextResponse.redirect(new URL("/admin/login", req.url), 303);
-  if (sameOrigin(req)) res.cookies.delete(SESSION_COOKIE);
+export async function POST() {
+  const res = new NextResponse(null, { status: 303, headers: { Location: "/admin/login" } });
+  res.cookies.delete(SESSION_COOKIE);
   return res;
 }

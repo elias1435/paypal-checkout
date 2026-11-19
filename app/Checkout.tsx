@@ -7,17 +7,16 @@ type Props = {
   clientId: string;
   currency: string;
   initialAmount: string;
-  minAmount: number;
-  maxAmount: number;
   description: string;
   businessName: string;
 };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX = 999999.99;
 
-export default function Checkout(props: Props) {
-  const { clientId, currency, minAmount, maxAmount, description, businessName } = props;
-  const [form, setForm] = useState({ name: "", email: "", phone: "", amount: props.initialAmount });
+export default function Checkout({ clientId, currency, initialAmount, description, businessName }: Props) {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", amount: initialAmount });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [done, setDone] = useState<null | string>(null);
   // PayPal callbacks are created once; keep the latest form values in a ref.
@@ -25,95 +24,119 @@ export default function Checkout(props: Props) {
   formRef.current = form;
 
   const amountNum = Number(form.amount);
-  const amountOk =
-    /^\d+(\.\d{1,2})?$/.test(form.amount.trim()) && amountNum >= minAmount && amountNum <= maxAmount;
-  const valid = form.name.trim() !== "" && EMAIL.test(form.email.trim()) && amountOk;
-  const fmt = (n: number) => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n);
+  const amountOk = /^\d+(\.\d{1,2})?$/.test(form.amount.trim()) && amountNum > 0 && amountNum <= MAX;
+  const nameOk = form.name.trim() !== "";
+  const emailOk = EMAIL.test(form.email.trim());
+  const valid = amountOk && nameOk && emailOk;
+  const fmt = (n: number) => new Intl.NumberFormat("he-IL", { style: "currency", currency }).format(n);
+  const symbol = new Intl.NumberFormat("he-IL", { style: "currency", currency })
+    .formatToParts(0).find((p) => p.type === "currency")?.value ?? currency;
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm({ ...form, [k]: k === "amount" ? e.target.value.replace(/[^\d.]/g, "") : e.target.value });
+  const blur = (k: string) => () => setTouched({ ...touched, [k]: true });
 
   if (done) {
     return (
       <div className="card done">
-        <div className="big">✓</div>
-        <h2>Payment received</h2>
-        <p className="hint">Thank you, {form.name}. PayPal will email you a receipt.</p>
-        <p className="hint">Reference: {done}</p>
+        <svg className="check" viewBox="0 0 52 52" aria-hidden="true">
+          <circle cx="26" cy="26" r="24" />
+          <path d="M14 27 l8 8 l16 -18" />
+        </svg>
+        <h2>התשלום התקבל בהצלחה</h2>
+        <p className="hint">תודה {form.name}! קבלה תישלח אליך במייל מ-PayPal.</p>
+        <p className="ref">מספר אסמכתא: <span dir="ltr">{done}</span></p>
       </div>
     );
   }
 
   return (
     <div className="card">
-      <div className="head">{businessName}</div>
-      <div className="secure">🔒 Secure payment via PayPal</div>
+      <div className="head">
+        <div className="logo" aria-hidden="true">₪</div>
+        <h1>{businessName}</h1>
+        {description && <p className="desc">{description}</p>}
+      </div>
+      <div className="secure">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z" /></svg>
+        תשלום מאובטח באמצעות PayPal
+      </div>
+
       <div className="body">
-        {description && <p style={{ marginTop: 0 }}>{description}</p>}
-
-        <label htmlFor="amount">Amount ({currency}) *</label>
-        <input
-          id="amount"
-          inputMode="decimal"
-          placeholder={`${minAmount} – ${maxAmount}`}
-          value={form.amount}
-          onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^\d.]/g, "") })}
-        />
-        {form.amount !== "" && !amountOk && (
-          <div className="err">
-            Enter an amount between {fmt(minAmount)} and {fmt(maxAmount)}.
+        <div className="amount-box">
+          <label htmlFor="amount">סכום לתשלום</label>
+          <div className="amount-input">
+            <span className="cur">{symbol}</span>
+            <input id="amount" inputMode="decimal" placeholder="0" autoComplete="off" dir="ltr"
+              value={form.amount} onChange={set("amount")} onBlur={blur("amount")} />
           </div>
-        )}
-
-        <label htmlFor="name">Full name *</label>
-        <input id="name" autoComplete="name" maxLength={100} value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })} />
-
-        <label htmlFor="email">Email *</label>
-        <input id="email" type="email" autoComplete="email" maxLength={200} value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })} />
-
-        <label htmlFor="phone">Phone</label>
-        <input id="phone" type="tel" autoComplete="tel" maxLength={30} value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-
-        <div className="total">
-          <span>Total</span>
-          <span>{amountOk ? fmt(amountNum) : "—"}</span>
+          {touched.amount && !amountOk && <div className="field-err">יש להזין סכום גדול מ-0</div>}
         </div>
 
-        {error && <div className="err">{error}</div>}
-        {!valid && <p className="hint">Fill in the amount, your name and email to continue.</p>}
+        <div className="field">
+          <label htmlFor="name">שם מלא <span className="req">*</span></label>
+          <input id="name" autoComplete="name" maxLength={100} placeholder="ישראל ישראלי"
+            value={form.name} onChange={set("name")} onBlur={blur("name")} />
+          {touched.name && !nameOk && <div className="field-err">יש להזין שם מלא</div>}
+        </div>
 
-        <PayPalScriptProvider options={{ clientId, currency, intent: "capture", components: "buttons" }}>
-          <PayPalButtons
-            disabled={!valid}
-            forceReRender={[valid]}
-            style={{ layout: "vertical", shape: "rect", label: "pay" }}
-            createOrder={async () => {
-              setError("");
-              const { name, email, phone, amount } = formRef.current;
-              const res = await fetch("/api/orders", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, phone, amount, note: description }),
-              });
-              const data = await res.json();
-              if (!res.ok) {
-                setError(data.error ?? "Something went wrong");
-                throw new Error(data.error);
-              }
-              return data.id;
-            }}
-            onApprove={async ({ orderID }) => {
-              const res = await fetch(`/api/orders/${orderID}/capture`, { method: "POST" });
-              const data = await res.json();
-              if (res.ok && data.status === "COMPLETED") setDone(orderID);
-              else if (res.ok && data.status === "PENDING") setDone(`${orderID} (pending review by PayPal)`);
-              else setError(data.error ?? "Payment was declined. Please try another method.");
-            }}
-            onError={() => setError("Payment failed. Please try again.")}
-          />
-        </PayPalScriptProvider>
-        <p className="hint" style={{ textAlign: "center" }}>
-          Card details are entered on PayPal&apos;s secure form and never stored on this site.
+        <div className="field">
+          <label htmlFor="email">אימייל <span className="req">*</span></label>
+          <input id="email" type="email" autoComplete="email" maxLength={200} dir="ltr" placeholder="name@example.com"
+            value={form.email} onChange={set("email")} onBlur={blur("email")} />
+          {touched.email && !emailOk && <div className="field-err">כתובת אימייל לא תקינה</div>}
+        </div>
+
+        <div className="field">
+          <label htmlFor="phone">טלפון <span className="opt">(לא חובה)</span></label>
+          <input id="phone" type="tel" autoComplete="tel" maxLength={30} dir="ltr" placeholder="050-0000000"
+            value={form.phone} onChange={set("phone")} />
+        </div>
+
+        <div className="total">
+          <span>סה&quot;כ לתשלום</span>
+          <span key={amountOk ? form.amount : "none"} className="total-value">{amountOk ? fmt(amountNum) : fmt(0)}</span>
+        </div>
+
+        {error && <div className="err" role="alert">{error}</div>}
+
+        <div className={`paypal ${valid ? "" : "locked"}`}>
+          {!valid && <p className="hint center">יש למלא סכום, שם ואימייל כדי להמשיך לתשלום</p>}
+          <PayPalScriptProvider options={{ clientId, currency, intent: "capture", components: "buttons", locale: "he_IL" }}>
+            <PayPalButtons
+              disabled={!valid}
+              forceReRender={[valid]}
+              style={{ layout: "vertical", shape: "pill", label: "pay", height: 48 }}
+              createOrder={async () => {
+                setError("");
+                const { name, email, phone, amount } = formRef.current;
+                const res = await fetch("/api/orders", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name, email, phone, amount, note: description }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  setError(data.error ?? "משהו השתבש, נסו שוב");
+                  throw new Error(data.error);
+                }
+                return data.id;
+              }}
+              onApprove={async ({ orderID }) => {
+                const res = await fetch(`/api/orders/${orderID}/capture`, { method: "POST" });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.status === "COMPLETED") setDone(orderID);
+                else if (res.ok && data.status === "PENDING") setDone(`${orderID} (ממתין לאישור PayPal)`);
+                else setError(data.error ?? "התשלום נדחה. נסו אמצעי תשלום אחר.");
+              }}
+              onError={() => setError("התשלום נכשל. נסו שוב.")}
+            />
+          </PayPalScriptProvider>
+        </div>
+
+        <p className="foot">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 10V7a5 5 0 0 0-10 0v3H5v12h14V10h-2Zm-8 0V7a3 3 0 0 1 6 0v3H9Z" /></svg>
+          פרטי האשראי מוזנים בטופס המאובטח של PayPal ואינם נשמרים באתר זה
         </p>
       </div>
     </div>

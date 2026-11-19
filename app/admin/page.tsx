@@ -1,52 +1,87 @@
+import { redirect } from "next/navigation";
+import { isAdmin } from "@/lib/auth";
 import { listPayments } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export default async function Admin({ searchParams }: { searchParams: Promise<{ all?: string }> }) {
-  const showAll = (await searchParams).all === "1";
-  const all = await listPayments();
-  const rows = showAll ? all : all.filter((p) => p.status !== "CREATED");
+const STATUS: Record<string, string> = {
+  COMPLETED: "הושלם", PENDING: "ממתין", CREATED: "לא הושלם", FAILED: "נכשל", DECLINED: "נדחה",
+};
+
+export default async function Admin({ searchParams }: { searchParams: Promise<{ all?: string; q?: string }> }) {
+  if (!(await isAdmin())) redirect("/admin/login");
+  const sp = await searchParams;
+  const showAll = sp.all === "1";
+  const q = (sp.q ?? "").trim().toLowerCase();
+  let all: Awaited<ReturnType<typeof listPayments>> = [];
+  let dbError = "";
+  try {
+    all = await listPayments();
+  } catch (e) {
+    console.error(e);
+    const code = (e as { code?: string }).code ?? "";
+    dbError = code === "ER_ACCESS_DENIED_ERROR" ? "שם המשתמש או הסיסמה של מסד הנתונים שגויים (DB_USER / DB_PASSWORD)"
+      : code === "ER_BAD_DB_ERROR" ? "מסד הנתונים לא נמצא (DB_NAME)"
+      : code === "ECONNREFUSED" || code === "ENOTFOUND" || code === "ETIMEDOUT" ? "לא ניתן להתחבר לשרת מסד הנתונים (DB_HOST / DB_PORT)"
+      : `שגיאת מסד נתונים${code ? ` (${code})` : ""}`;
+  }
+  let rows = showAll ? all : all.filter((p) => p.status !== "CREATED");
+  if (q) rows = rows.filter((p) => [p.name, p.email, p.phone, p.payerEmail, p.orderId, p.captureId]
+    .some((v) => v?.toLowerCase().includes(q)));
   const completed = all.filter((p) => p.status === "COMPLETED");
   const totals = completed.reduce<Record<string, number>>((acc, p) => {
     acc[p.currency] = (acc[p.currency] ?? 0) + Number(p.amount);
     return acc;
   }, {});
+  const money = (n: number, cur: string) => new Intl.NumberFormat("he-IL", { style: "currency", currency: cur }).format(n);
 
   return (
     <main className="admin">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Payments</h1>
+      <div className="admin-top">
+        <h1>תשלומים</h1>
         <form method="post" action="/api/admin/logout">
-          <button className="btn btn-outline" type="submit">Log out</button>
+          <button className="btn btn-outline" type="submit">התנתקות</button>
         </form>
       </div>
+
+      {dbError && <div className="err">{dbError}. יש לבדוק את משתני הסביבה ולפרסם מחדש.</div>}
+
       <div className="stats">
-        <div className="stat">Completed<b>{completed.length}</b></div>
+        <div className="stat"><span>תשלומים שהושלמו</span><b>{completed.length}</b></div>
         {Object.entries(totals).map(([cur, sum]) => (
-          <div className="stat" key={cur}>Total {cur}<b>{sum.toFixed(2)}</b></div>
+          <div className="stat" key={cur}><span>סה&quot;כ התקבל</span><b>{money(sum, cur)}</b></div>
         ))}
       </div>
-      <p className="hint">
-        {showAll ? <a href="/admin">Hide abandoned checkouts</a> : <a href="/admin?all=1">Show abandoned checkouts too</a>}
-        {" · "}<a href="/admin/export">Download CSV</a>
-      </p>
+
+      <div className="toolbar">
+        <form method="get" className="search">
+          <input name="q" defaultValue={sp.q ?? ""} placeholder="חיפוש לפי שם, אימייל, טלפון..." />
+          {showAll && <input type="hidden" name="all" value="1" />}
+          <button className="btn btn-outline" type="submit">חיפוש</button>
+        </form>
+        <div className="links">
+          {showAll ? <a href="/admin">הסתר תשלומים שלא הושלמו</a> : <a href="/admin?all=1">הצג גם תשלומים שלא הושלמו</a>}
+          <a href="/admin/export">הורדת CSV</a>
+        </div>
+      </div>
+
       <div className="scroll">
         <table>
           <thead>
-            <tr><th>Date</th><th>Name</th><th>Email</th><th>Phone</th><th>Amount</th><th>Status</th><th>Note</th><th>PayPal ref</th></tr>
+            <tr><th>תאריך</th><th>שם</th><th>אימייל</th><th>טלפון</th><th>סכום</th><th>סטטוס</th><th>הערה</th><th>אסמכתא PayPal</th></tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={8}>No payments yet.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={8} className="empty">אין תשלומים להצגה</td></tr>}
             {rows.map((p) => (
               <tr key={p.orderId}>
-                <td>{new Date(p.createdAt).toLocaleString()}</td>
+                <td>{new Date(p.createdAt).toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}</td>
                 <td>{p.name}</td>
-                <td>{p.email}{p.payerEmail && p.payerEmail !== p.email && <div className="hint">PayPal: {p.payerEmail}</div>}</td>
-                <td>{p.phone ?? ""}</td>
-                <td>{p.amount} {p.currency}</td>
-                <td><span className={`badge ${p.status}`}>{p.status}</span></td>
+                <td dir="ltr" className="ltr">{p.email}{p.payerEmail && p.payerEmail !== p.email && <div className="hint">PayPal: {p.payerEmail}</div>}</td>
+                <td dir="ltr" className="ltr">{p.phone ?? ""}</td>
+                <td>{money(Number(p.amount), p.currency)}</td>
+                <td><span className={`badge ${p.status}`}>{STATUS[p.status] ?? p.status}</span></td>
                 <td>{p.note ?? ""}</td>
-                <td className="hint">{p.captureId ?? p.orderId}</td>
+                <td dir="ltr" className="ltr hint">{p.captureId ?? p.orderId}</td>
               </tr>
             ))}
           </tbody>

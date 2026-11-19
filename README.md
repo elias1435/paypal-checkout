@@ -1,6 +1,6 @@
 # PayPal payment page (Next.js)
 
-Payment page where customers type the amount and pay with PayPal or a card, plus a
+Hebrew (RTL) payment page where customers type the amount and pay with PayPal or a card, plus a
 login-protected admin area. Card details are handled entirely by PayPal; this app
 stores only name, email, phone, amount, status and the PayPal reference.
 
@@ -21,8 +21,8 @@ and is **lost on every Hostinger deploy**.
 ## Security
 - Card data never touches this server (PayPal-hosted fields).
 - Admin: signed httpOnly session cookie (8h), SameSite=Strict, 5 login attempts / 15 min per IP.
-  The password must be at least 12 characters or login is refused.
-- Rate limits and same-origin checks on payment endpoints; amount validated on the server.
+  The password must be at least 10 characters (the login page says so if not).
+- Rate limits and cross-site checks (Sec-Fetch-Site, proxy-safe) on payment endpoints; amount validated on the server.
 - Security headers: CSP (self + PayPal only), HSTS, no framing, nosniff.
 
 ## Going live

@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { captureOrder } from "@/lib/paypal";
 import { getPayment, savePayment } from "@/lib/store";
-import { clientIp, rateLimit, sameOrigin } from "@/lib/ratelimit";
+import { clientIp, isCrossSite, rateLimit } from "@/lib/ratelimit";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!sameOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (isCrossSite(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!rateLimit(`capture:${clientIp(req)}`, 20, 60_000))
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return NextResponse.json({ error: "יותר מדי בקשות, נסו שוב בעוד דקה" }, { status: 429 });
   const { id } = await params;
-  if (!/^[A-Z0-9]{5,40}$/.test(id)) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
+  if (!/^[A-Z0-9]{5,40}$/.test(id)) return NextResponse.json({ error: "הזמנה לא נמצאה" }, { status: 404 });
   const existing = await getPayment(id);
-  if (!existing) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
+  if (!existing) return NextResponse.json({ error: "הזמנה לא נמצאה" }, { status: 404 });
 
   if (existing.status === "COMPLETED") return NextResponse.json({ status: "COMPLETED" });
 
@@ -29,6 +29,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   } catch (e) {
     console.error(e);
     await savePayment({ ...existing, status: "FAILED" });
-    return NextResponse.json({ error: "Payment could not be completed" }, { status: 502 });
+    return NextResponse.json({ error: "התשלום לא הושלם" }, { status: 502 });
   }
 }

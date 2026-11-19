@@ -1,5 +1,6 @@
-// Signed session cookie for the admin area. Uses Web Crypto so it runs in
-// both middleware (edge) and route handlers (node).
+// Signed session cookie for the admin area.
+import { cookies } from "next/headers";
+import { env } from "./config";
 export const SESSION_COOKIE = "admin_session";
 export const SESSION_HOURS = 8;
 
@@ -8,10 +9,7 @@ const enc = new TextEncoder();
 function secret(): string {
   // Prefer an explicit SESSION_SECRET. Otherwise derive one from other secrets,
   // so changing ADMIN_PASSWORD logs everyone out.
-  return (
-    process.env.SESSION_SECRET ||
-    `${process.env.ADMIN_PASSWORD ?? ""}|${process.env.PAYPAL_CLIENT_SECRET ?? ""}|session`
-  );
+  return env("SESSION_SECRET") || `${env("ADMIN_PASSWORD")}|${env("PAYPAL_CLIENT_SECRET")}|session`;
 }
 
 const b64url = (buf: ArrayBuffer | Uint8Array) =>
@@ -31,12 +29,27 @@ export async function safeEqual(a: string, b: string): Promise<boolean> {
   return diff === 0;
 }
 
+export const MIN_PASSWORD = 10;
+
+/** Problem with the server's admin settings, if any (shown on the login page). */
+export function adminConfigProblem(): string | null {
+  if (!env("ADMIN_USER") || !env("ADMIN_PASSWORD")) return "missing";
+  if (env("ADMIN_PASSWORD").length < MIN_PASSWORD) return "short";
+  return null;
+}
+
 export async function checkCredentials(user: string, pass: string): Promise<boolean> {
-  const u = process.env.ADMIN_USER ?? "";
-  const p = process.env.ADMIN_PASSWORD ?? "";
-  if (!u || p.length < 12) return false; // refuse to run with an empty/weak password
-  const [okU, okP] = await Promise.all([safeEqual(user, u), safeEqual(pass, p)]);
+  if (adminConfigProblem()) return false;
+  const [okU, okP] = await Promise.all([
+    safeEqual(user.trim().toLowerCase(), env("ADMIN_USER").toLowerCase()),
+    safeEqual(pass, env("ADMIN_PASSWORD")),
+  ]);
   return okU && okP;
+}
+
+/** For server components / route handlers. */
+export async function isAdmin(): Promise<boolean> {
+  return verifySession((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
 export async function createSession(): Promise<string> {
