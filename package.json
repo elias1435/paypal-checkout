@@ -1,0 +1,21 @@
+{
+  "name": "paypal-checkout",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3000}"
+  },
+  "dependencies": {
+    "@paypal/react-paypal-js": "8.9.2",
+    "next": "15.5.29",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "@types/react": "19.1.12",
+    "typescript": "5.9.2"
+  }
+}
