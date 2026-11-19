@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { config, parseAmount } from "@/lib/config";
+import { parseAmount } from "@/lib/config";
+import { getSettings } from "@/lib/settings";
 import { createOrder } from "@/lib/paypal";
 import { savePayment } from "@/lib/store";
 import { clientIp, isCrossSite, rateLimit } from "@/lib/ratelimit";
@@ -24,12 +25,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "יש להזין סכום תקין" }, { status: 400 });
 
   try {
-    const order = await createOrder(amount, note || `תשלום ל-${config.businessName}`);
+    const settings = await getSettings();
+    const order = await createOrder(amount, settings.currency, note || `תשלום ל-${settings.siteName}`);
     await savePayment({
       orderId: order.id,
       status: "CREATED",
       amount,
-      currency: config.currency,
+      currency: settings.currency,
       name,
       email,
       phone: phone || undefined,

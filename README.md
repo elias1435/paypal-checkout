@@ -8,12 +8,18 @@ stores only name, email, phone, amount, status and the PayPal reference.
 1. Copy `.env.example` to `.env.local` (or add the same keys as environment variables in Hostinger).
 2. `npm install && npm run build && npm start`
 
+## Admin settings (`/admin/settings`)
+Everything visible is edited there and stored in MySQL: site name (show/hide), subtitle,
+logo upload (PNG/JPG/WEBP, max 2MB) with three display modes (small logo, full-width
+image header, no logo), brand colors, currency, phone field on/off, every text on the
+form, and the admin username/password (hashed with scrypt).
+
 ## Pages
 - Payment page: `https://yourdomain.com/` (optional prefill: `/?amount=50&desc=Consultation`)
 - Admin: `https://yourdomain.com/admin` → redirects to the login page
 - CSV export: `/admin/export` (logged in only)
 
-## Storage
+## Storage (payments, settings, logo, admin login)
 In production set the `DB_*` variables (MySQL). The table is created automatically.
 Without them, payments go to `data/payments.json`, which is for local testing only
 and is **lost on every Hostinger deploy**.

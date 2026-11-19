@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { listPayments } from "@/lib/store";
+import AdminNav from "./AdminNav";
 
 export const dynamic = "force-dynamic";
 
@@ -37,12 +38,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
 
   return (
     <main className="admin">
-      <div className="admin-top">
-        <h1>תשלומים</h1>
-        <form method="post" action="/api/admin/logout">
-          <button className="btn btn-outline" type="submit">התנתקות</button>
-        </form>
-      </div>
+      <AdminNav active="payments" />
 
       {dbError && <div className="err">{dbError}. יש לבדוק את משתני הסביבה ולפרסם מחדש.</div>}
 

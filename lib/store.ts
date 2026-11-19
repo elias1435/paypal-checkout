@@ -53,6 +53,14 @@ async function db(): Promise<Pool> {
           INDEX idx_created (created_at)
         ) CHARACTER SET utf8mb4`
       )
+      .then(() =>
+        pool!.query(
+          `CREATE TABLE IF NOT EXISTS app_settings (
+            k VARCHAR(50) NOT NULL PRIMARY KEY,
+            v MEDIUMTEXT  NOT NULL
+          ) CHARACTER SET utf8mb4`
+        )
+      )
       .then(() => undefined);
   }
   await ready;
@@ -75,7 +83,8 @@ const fromRow = (r: Row): Payment => ({
 });
 
 // ---------- JSON file (local development only) ----------
-const FILE = path.join(process.env.DATA_DIR || path.join(process.cwd(), "data"), "payments.json");
+const DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
+const FILE = path.join(DIR, "payments.json");
 let queue: Promise<unknown> = Promise.resolve();
 
 async function readFile(): Promise<Payment[]> {
@@ -127,4 +136,27 @@ export async function savePayment(p: Payment): Promise<void> {
   });
   queue = job.catch(() => {});
   return job;
+}
+
+// ---------- Key/value settings ----------
+const kvFile = (k: string) => path.join(DIR, `setting-${k.replace(/[^a-z0-9_-]/gi, "")}.json`);
+
+export async function kvGet(k: string): Promise<string | null> {
+  if (!useMysql()) return fs.readFile(kvFile(k), "utf8").catch(() => null);
+  const [rows] = await (await db()).query("SELECT v FROM app_settings WHERE k = ?", [k]);
+  const r = (rows as Row[])[0];
+  return r ? String(r.v) : null;
+}
+
+/** Store a value; `null` clears the key. */
+export async function kvSet(k: string, v: string | null): Promise<void> {
+  if (!useMysql()) {
+    await fs.mkdir(DIR, { recursive: true });
+    if (v === null) await fs.unlink(kvFile(k)).catch(() => {});
+    else await fs.writeFile(kvFile(k), v);
+    return;
+  }
+  const pool = await db();
+  if (v === null) await pool.query("DELETE FROM app_settings WHERE k = ?", [k]);
+  else await pool.query("INSERT INTO app_settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)", [k, v]);
 }

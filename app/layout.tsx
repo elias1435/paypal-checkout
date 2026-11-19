@@ -1,10 +1,15 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import { getSettings } from "@/lib/settings";
 
-export const metadata: Metadata = {
-  title: process.env.BUSINESS_NAME ?? "תשלום מאובטח",
-  robots: { index: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getSettings();
+  return {
+    title: s.siteName,
+    robots: { index: false },
+    icons: s.logoVersion ? { icon: `/api/logo?v=${s.logoVersion}` } : undefined,
+  };
+}
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#f3f4f8" };
 

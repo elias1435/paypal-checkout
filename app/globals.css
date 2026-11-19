@@ -159,3 +159,75 @@ td.ltr { text-align: left; }
   .wrap { padding-top: 16px; }
   .body { padding: 20px; }
 }
+
+/* ---------- Brand header variants ---------- */
+.head-text h1 + .subtitle, .head-text h1 + .desc { margin-top: 6px; }
+.subtitle { margin: 0; font-size: 15px; opacity: .92; }
+.logo-img {
+  display: block; max-width: 70%; max-height: 110px; margin: 0 auto 14px; object-fit: contain;
+  border-radius: 12px; animation: pop .6s .15s cubic-bezier(.2,1.4,.4,1) both;
+}
+.head-banner { padding: 0; background: #111; }
+.banner-img { display: block; width: 100%; height: auto; animation: fade .7s both; }
+.head-banner .head-text { padding: 14px 20px 16px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+
+/* ---------- Admin tabs ---------- */
+.tabs { display: flex; gap: 4px; background: #fff; padding: 4px; border-radius: 12px; box-shadow: var(--shadow); }
+.tab { padding: 8px 16px; border-radius: 9px; color: var(--muted); font-weight: 600; font-size: 15px; }
+.tab:hover { text-decoration: none; color: var(--text); background: #f4f4fb; }
+.tab.active { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; }
+
+/* ---------- Settings ---------- */
+.settings { display: grid; gap: 18px; padding-bottom: 80px; }
+.panel { background: var(--card); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); animation: rise .4s both; }
+.panel h2 { font-size: 18px; margin-bottom: 16px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 28px; align-items: start; }
+.texts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 4px 20px; }
+.check-row { display: flex; gap: 10px; align-items: center; font-weight: 500; margin: -4px 0 16px; cursor: pointer; }
+.check-row input { width: 18px; height: 18px; accent-color: #4f46e5; }
+select {
+  width: 100%; padding: 12px 14px; font: inherit; border-radius: 12px; border: 1.5px solid var(--line); background: var(--field);
+}
+.logo-row { display: flex; gap: 14px; align-items: center; }
+.logo-thumb {
+  width: 140px; height: 80px; border-radius: 12px; border: 1.5px dashed var(--line); display: grid; place-items: center;
+  background: repeating-conic-gradient(#f3f4f6 0 25%, #fff 0 50%) 0 0 / 16px 16px; overflow: hidden;
+}
+.logo-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.logo-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.danger { color: var(--err); }
+.danger:hover { border-color: var(--err); }
+.mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.mode {
+  border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; cursor: pointer; font-weight: 400;
+  display: flex; flex-direction: column; gap: 2px; transition: border-color .2s, background .2s;
+}
+.mode input { display: none; }
+.mode span { font-size: 12px; color: var(--muted); }
+.mode.on { border-color: #4f46e5; background: #f5f4ff; }
+.color-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.color-row input[type="color"] { width: 64px; height: 42px; padding: 3px; cursor: pointer; }
+.link-btn { background: none; border: 0; color: var(--accent); font: inherit; font-size: 14px; cursor: pointer; padding: 0; }
+.preview { position: sticky; top: 16px; }
+.preview-card { margin-top: 6px; animation: none; }
+.notice { background: #fff7e6; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 14px; margin-top: 0; }
+.save-bar {
+  position: sticky; bottom: 12px; z-index: 5; display: flex; justify-content: flex-start;
+}
+.save-bar .btn { width: auto; padding: 13px 34px; box-shadow: 0 10px 24px -8px rgba(79,70,229,.55); }
+.btn:disabled { opacity: .6; cursor: progress; transform: none; }
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 20;
+  padding: 12px 22px; border-radius: 12px; color: #fff; font-weight: 600; box-shadow: var(--shadow);
+  animation: toast .3s cubic-bezier(.2,1.2,.4,1) both;
+}
+.toast.ok { background: #059669; }
+.toast.err { background: #dc2626; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes toast { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (max-width: 640px) {
+  .mode-grid { grid-template-columns: 1fr; }
+  .admin-top { flex-wrap: wrap; gap: 10px; }
+  .preview { position: static; }
+}

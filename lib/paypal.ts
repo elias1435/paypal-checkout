@@ -24,12 +24,12 @@ async function call(path: string, body?: unknown) {
   return json;
 }
 
-export function createOrder(amount: string, description: string) {
+export function createOrder(amount: string, currency: string, description: string) {
   return call("/v2/checkout/orders", {
     intent: "CAPTURE",
     purchase_units: [
       {
-        amount: { currency_code: config.currency, value: amount },
+        amount: { currency_code: currency, value: amount },
         description: description.slice(0, 127),
       },
     ],

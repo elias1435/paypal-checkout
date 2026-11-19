@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string; locked?: string }> }) {
   if (await isAdmin()) redirect("/admin");
   const sp = await searchParams;
-  const problem = adminConfigProblem();
+  const problem = await adminConfigProblem();
   return (
     <main className="wrap">
       <form className="card" method="post" action="/api/admin/login">
@@ -17,6 +17,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
           <h1>כניסת מנהל</h1>
         </div>
         <div className="body">
+          {problem === "db" && <div className="err">לא ניתן להתחבר למסד הנתונים. יש לבדוק את משתני DB_* ולפרסם מחדש.</div>}
           {problem === "missing" && <div className="err">ADMIN_USER / ADMIN_PASSWORD לא הוגדרו בשרת.</div>}
           {problem === "short" && <div className="err">הסיסמה שהוגדרה בשרת (ADMIN_PASSWORD) קצרה מ-{MIN_PASSWORD} תווים. יש להגדיר סיסמה ארוכה יותר ולפרסם מחדש.</div>}
           {!problem && sp.error && <div className="err">שם משתמש או סיסמה שגויים.</div>}

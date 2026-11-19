@@ -6,8 +6,6 @@ export const config = {
   env: ["live", "production"].includes(env("PAYPAL_ENV").toLowerCase()) ? "live" : "sandbox",
   clientId: env("NEXT_PUBLIC_PAYPAL_CLIENT_ID"),
   secret: env("PAYPAL_CLIENT_SECRET"),
-  currency: env("CURRENCY", "ILS").toUpperCase(),
-  businessName: env("BUSINESS_NAME", "תשלום מאובטח"),
 };
 
 export const apiBase = () =>

@@ -1,4 +1,5 @@
 import { config, parseAmount } from "@/lib/config";
+import { getSettings } from "@/lib/settings";
 import Checkout from "./Checkout";
 
 export const dynamic = "force-dynamic";
@@ -10,14 +11,15 @@ export default async function Page({
   searchParams: Promise<{ amount?: string; desc?: string }>;
 }) {
   const sp = await searchParams;
+  const { logoVersion, ...settings } = await getSettings();
   return (
     <main className="wrap">
       <Checkout
         clientId={config.clientId}
-        currency={config.currency}
+        settings={settings}
+        logoUrl={logoVersion ? `/api/logo?v=${logoVersion}` : null}
         initialAmount={parseAmount(sp.amount) ?? ""}
         description={(sp.desc ?? "").slice(0, 120)}
-        businessName={config.businessName}
       />
     </main>
   );

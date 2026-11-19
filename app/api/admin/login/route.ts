@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE, SESSION_HOURS, checkCredentials, createSession } from "@/lib/auth";
+import { SESSION_COOKIE, checkCredentials, createSession, sessionCookieOptions } from "@/lib/auth";
 import { clientIp, isCrossSite, rateLimit, redirect303 } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
@@ -20,12 +20,6 @@ export async function POST(req: Request) {
   }
 
   const res = new NextResponse(null, { status: 303, headers: { Location: "/admin", "Cache-Control": "no-store" } });
-  res.cookies.set(SESSION_COOKIE, await createSession(), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_HOURS * 3600,
-  });
+  res.cookies.set(SESSION_COOKIE, await createSession(), sessionCookieOptions);
   return res;
 }

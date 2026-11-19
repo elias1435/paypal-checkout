@@ -2,19 +2,22 @@
 
 import { useRef, useState } from "react";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
+import type { Settings } from "@/lib/settings-schema";
+import BrandHeader from "./BrandHeader";
 
 type Props = {
   clientId: string;
-  currency: string;
+  settings: Settings;
+  logoUrl: string | null;
   initialAmount: string;
   description: string;
-  businessName: string;
 };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX = 999999.99;
 
-export default function Checkout({ clientId, currency, initialAmount, description, businessName }: Props) {
+export default function Checkout({ clientId, settings, logoUrl, initialAmount, description }: Props) {
+  const { currency, texts: t, showPhone } = settings;
   const [form, setForm] = useState({ name: "", email: "", phone: "", amount: initialAmount });
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
@@ -28,80 +31,78 @@ export default function Checkout({ clientId, currency, initialAmount, descriptio
   const nameOk = form.name.trim() !== "";
   const emailOk = EMAIL.test(form.email.trim());
   const valid = amountOk && nameOk && emailOk;
-  const fmt = (n: number) => new Intl.NumberFormat("he-IL", { style: "currency", currency }).format(n);
-  const symbol = new Intl.NumberFormat("he-IL", { style: "currency", currency })
-    .formatToParts(0).find((p) => p.type === "currency")?.value ?? currency;
+  const money = new Intl.NumberFormat("he-IL", { style: "currency", currency });
+  const symbol = money.formatToParts(0).find((p) => p.type === "currency")?.value ?? currency;
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [k]: k === "amount" ? e.target.value.replace(/[^\d.]/g, "") : e.target.value });
   const blur = (k: string) => () => setTouched({ ...touched, [k]: true });
+  const brand = { "--accent": settings.colorFrom, "--accent-2": settings.colorTo } as React.CSSProperties;
 
   if (done) {
     return (
-      <div className="card done">
+      <div className="card done" style={brand}>
         <svg className="check" viewBox="0 0 52 52" aria-hidden="true">
           <circle cx="26" cy="26" r="24" />
           <path d="M14 27 l8 8 l16 -18" />
         </svg>
-        <h2>התשלום התקבל בהצלחה</h2>
-        <p className="hint">תודה {form.name}! קבלה תישלח אליך במייל מ-PayPal.</p>
-        <p className="ref">מספר אסמכתא: <span dir="ltr">{done}</span></p>
+        <h2>{t.successTitle}</h2>
+        <p className="hint">{t.successMessage.replace(/\{name\}/g, form.name.trim())}</p>
+        <p className="ref">{t.referenceLabel} <span dir="ltr">{done}</span></p>
       </div>
     );
   }
 
   return (
-    <div className="card">
-      <div className="head">
-        <div className="logo" aria-hidden="true">₪</div>
-        <h1>{businessName}</h1>
-        {description && <p className="desc">{description}</p>}
-      </div>
+    <div className="card" style={brand}>
+      <BrandHeader settings={settings} logoUrl={logoUrl} description={description} />
       <div className="secure">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z" /></svg>
-        תשלום מאובטח באמצעות PayPal
+        {t.secureBadge}
       </div>
 
       <div className="body">
         <div className="amount-box">
-          <label htmlFor="amount">סכום לתשלום</label>
+          <label htmlFor="amount">{t.amountLabel}</label>
           <div className="amount-input">
             <span className="cur">{symbol}</span>
-            <input id="amount" inputMode="decimal" placeholder="0" autoComplete="off" dir="ltr"
+            <input id="amount" inputMode="decimal" placeholder={t.amountPlaceholder} autoComplete="off" dir="ltr"
               value={form.amount} onChange={set("amount")} onBlur={blur("amount")} />
           </div>
-          {touched.amount && !amountOk && <div className="field-err">יש להזין סכום גדול מ-0</div>}
+          {touched.amount && !amountOk && <div className="field-err">{t.amountError}</div>}
         </div>
 
         <div className="field">
-          <label htmlFor="name">שם מלא <span className="req">*</span></label>
-          <input id="name" autoComplete="name" maxLength={100} placeholder="ישראל ישראלי"
+          <label htmlFor="name">{t.nameLabel} <span className="req">*</span></label>
+          <input id="name" autoComplete="name" maxLength={100} placeholder={t.namePlaceholder}
             value={form.name} onChange={set("name")} onBlur={blur("name")} />
-          {touched.name && !nameOk && <div className="field-err">יש להזין שם מלא</div>}
+          {touched.name && !nameOk && <div className="field-err">{t.nameError}</div>}
         </div>
 
         <div className="field">
-          <label htmlFor="email">אימייל <span className="req">*</span></label>
-          <input id="email" type="email" autoComplete="email" maxLength={200} dir="ltr" placeholder="name@example.com"
+          <label htmlFor="email">{t.emailLabel} <span className="req">*</span></label>
+          <input id="email" type="email" autoComplete="email" maxLength={200} dir="ltr" placeholder={t.emailPlaceholder}
             value={form.email} onChange={set("email")} onBlur={blur("email")} />
-          {touched.email && !emailOk && <div className="field-err">כתובת אימייל לא תקינה</div>}
+          {touched.email && !emailOk && <div className="field-err">{t.emailError}</div>}
         </div>
 
-        <div className="field">
-          <label htmlFor="phone">טלפון <span className="opt">(לא חובה)</span></label>
-          <input id="phone" type="tel" autoComplete="tel" maxLength={30} dir="ltr" placeholder="050-0000000"
-            value={form.phone} onChange={set("phone")} />
-        </div>
+        {showPhone && (
+          <div className="field">
+            <label htmlFor="phone">{t.phoneLabel} <span className="opt">{t.optionalText}</span></label>
+            <input id="phone" type="tel" autoComplete="tel" maxLength={30} dir="ltr" placeholder={t.phonePlaceholder}
+              value={form.phone} onChange={set("phone")} />
+          </div>
+        )}
 
         <div className="total">
-          <span>סה&quot;כ לתשלום</span>
-          <span key={amountOk ? form.amount : "none"} className="total-value">{amountOk ? fmt(amountNum) : fmt(0)}</span>
+          <span>{t.totalLabel}</span>
+          <span key={amountOk ? form.amount : "none"} className="total-value">{money.format(amountOk ? amountNum : 0)}</span>
         </div>
 
         {error && <div className="err" role="alert">{error}</div>}
 
         <div className={`paypal ${valid ? "" : "locked"}`}>
-          {!valid && <p className="hint center">יש למלא סכום, שם ואימייל כדי להמשיך לתשלום</p>}
+          {!valid && <p className="hint center">{t.fillHint}</p>}
           <PayPalScriptProvider options={{ clientId, currency, intent: "capture", components: "buttons", locale: "he_IL" }}>
             <PayPalButtons
               disabled={!valid}
@@ -113,11 +114,11 @@ export default function Checkout({ clientId, currency, initialAmount, descriptio
                 const res = await fetch("/api/orders", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name, email, phone, amount, note: description }),
+                  body: JSON.stringify({ name, email, phone: showPhone ? phone : "", amount, note: description }),
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
-                  setError(data.error ?? "משהו השתבש, נסו שוב");
+                  setError(data.error ?? t.failedError);
                   throw new Error(data.error);
                 }
                 return data.id;
@@ -127,16 +128,16 @@ export default function Checkout({ clientId, currency, initialAmount, descriptio
                 const data = await res.json().catch(() => ({}));
                 if (res.ok && data.status === "COMPLETED") setDone(orderID);
                 else if (res.ok && data.status === "PENDING") setDone(`${orderID} (ממתין לאישור PayPal)`);
-                else setError(data.error ?? "התשלום נדחה. נסו אמצעי תשלום אחר.");
+                else setError(data.error ?? t.declinedError);
               }}
-              onError={() => setError("התשלום נכשל. נסו שוב.")}
+              onError={() => setError(t.failedError)}
             />
           </PayPalScriptProvider>
         </div>
 
         <p className="foot">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 10V7a5 5 0 0 0-10 0v3H5v12h14V10h-2Zm-8 0V7a3 3 0 0 1 6 0v3H9Z" /></svg>
-          פרטי האשראי מוזנים בטופס המאובטח של PayPal ואינם נשמרים באתר זה
+          {t.footerNote}
         </p>
       </div>
     </div>
