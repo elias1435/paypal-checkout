@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 
-// HTTP Basic Auth for the admin area.
-export function middleware(req: NextRequest) {
-  const user = process.env.ADMIN_USER;
-  const pass = process.env.ADMIN_PASSWORD;
-  const header = req.headers.get("authorization") ?? "";
-  if (user && pass && header.startsWith("Basic ")) {
-    const [u, ...rest] = atob(header.slice(6)).split(":");
-    if (u === user && rest.join(":") === pass) return NextResponse.next();
+const PUBLIC = new Set(["/admin/login", "/api/admin/login"]);
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  let res: NextResponse;
+
+  if (PUBLIC.has(pathname) || (await verifySession(req.cookies.get(SESSION_COOKIE)?.value))) {
+    res = NextResponse.next();
+  } else if (pathname.startsWith("/api/")) {
+    res = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } else {
+    res = NextResponse.redirect(new URL("/admin/login", req.url));
   }
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Admin"' },
-  });
+  res.headers.set("Cache-Control", "no-store");
+  res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
 }
 
-export const config = { matcher: ["/admin/:path*"] };
+export const config = { matcher: ["/admin/:path*", "/api/admin/:path*"] };

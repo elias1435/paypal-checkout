@@ -1,18 +1,29 @@
-# PayPal payment link (Next.js)
+# PayPal payment page (Next.js)
 
-Payment page + password-protected admin list. Card details are handled entirely by
-PayPal; this app stores only name, email, phone, amount, status and the PayPal reference.
+Payment page where customers type the amount and pay with PayPal or a card, plus a
+login-protected admin area. Card details are handled entirely by PayPal; this app
+stores only name, email, phone, amount, status and the PayPal reference.
 
 ## Setup
-1. `cp .env.example .env.local` and fill in your PayPal Client ID + Secret and admin password.
+1. Copy `.env.example` to `.env.local` (or add the same keys as environment variables in Hostinger).
 2. `npm install && npm run build && npm start`
 
-## Links
-- Payment link: `https://yourdomain.com/?amount=50&desc=Consultation`
-  (no `amount` = DEFAULT_AMOUNT). The amount is checked on the server against MIN/MAX_AMOUNT.
-- Admin: `https://yourdomain.com/admin` (browser login prompt, ADMIN_USER / ADMIN_PASSWORD)
-- CSV export: `/admin/export`
+## Pages
+- Payment page: `https://yourdomain.com/` (optional prefill: `/?amount=50&desc=Consultation`)
+- Admin: `https://yourdomain.com/admin` → redirects to the login page
+- CSV export: `/admin/export` (logged in only)
+
+## Storage
+In production set the `DB_*` variables (MySQL). The table is created automatically.
+Without them, payments go to `data/payments.json`, which is for local testing only
+and is **lost on every Hostinger deploy**.
+
+## Security
+- Card data never touches this server (PayPal-hosted fields).
+- Admin: signed httpOnly session cookie (8h), SameSite=Strict, 5 login attempts / 15 min per IP.
+  The password must be at least 12 characters or login is refused.
+- Rate limits and same-origin checks on payment endpoints; amount validated on the server.
+- Security headers: CSP (self + PayPal only), HSTS, no framing, nosniff.
 
 ## Going live
-Set `PAYPAL_ENV=live` and use the **Live** credentials (toggle "Live" in the PayPal developer dashboard).
-Data is kept in `data/payments.json`, so back it up and keep it out of git.
+Set `PAYPAL_ENV=live` (or `production`) and use the **Live** Client ID + Secret.

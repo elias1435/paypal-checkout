@@ -14,7 +14,12 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
 
   return (
     <main className="admin">
-      <h1>Payments</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1>Payments</h1>
+        <form method="post" action="/api/admin/logout">
+          <button className="btn btn-outline" type="submit">Log out</button>
+        </form>
+      </div>
       <div className="stats">
         <div className="stat">Completed<b>{completed.length}</b></div>
         {Object.entries(totals).map(([cur, sum]) => (

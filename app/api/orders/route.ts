@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { config, parseAmount } from "@/lib/config";
 import { createOrder } from "@/lib/paypal";
 import { savePayment } from "@/lib/store";
+import { clientIp, rateLimit, sameOrigin } from "@/lib/ratelimit";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 
 export async function POST(req: Request) {
+  if (!sameOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!rateLimit(`order:${clientIp(req)}`, 10, 60_000))
+    return NextResponse.json({ error: "Too many requests, please wait a minute" }, { status: 429 });
   const body = await req.json().catch(() => ({}));
   const name = clean(body.name, 100);
   const email = clean(body.email, 200);
@@ -16,7 +20,8 @@ export async function POST(req: Request) {
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (!EMAIL.test(email)) return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
-  if (!amount) return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+  if (!amount)
+    return NextResponse.json({ error: `Amount must be between ${config.minAmount} and ${config.maxAmount}` }, { status: 400 });
 
   try {
     const order = await createOrder(amount, note || `Payment to ${config.businessName}`);
