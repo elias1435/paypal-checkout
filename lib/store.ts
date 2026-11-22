@@ -14,19 +14,56 @@ export type Payment = {
   phone?: string;
   note?: string;
   payerEmail?: string; // PayPal account email, if paid with PayPal
+  error?: string; // why PayPal failed / left it pending (shown in admin)
   createdAt: string;
 };
 
 const useMysql = () => Boolean(process.env.DB_HOST && process.env.DB_NAME);
 
 // ---------- MySQL (production) ----------
+// Optional prefix so several sites can share one database without mixing data.
+const prefix = (process.env.DB_TABLE_PREFIX ?? "").trim();
+if (!/^[a-z0-9_]{0,20}$/i.test(prefix)) throw new Error("DB_TABLE_PREFIX may only contain letters, digits and _");
+const PAYMENTS = `\`${prefix}payments\``;
+const SETTINGS = `\`${prefix}app_settings\``;
+
 let pool: Pool | null = null;
 let ready: Promise<void> | null = null;
+
+async function init(p: Pool) {
+  await p.query(
+    `CREATE TABLE IF NOT EXISTS ${PAYMENTS} (
+      order_id    VARCHAR(64)  NOT NULL PRIMARY KEY,
+      capture_id  VARCHAR(64)  NULL,
+      status      VARCHAR(32)  NOT NULL,
+      amount      DECIMAL(12,2) NOT NULL,
+      currency    CHAR(3)      NOT NULL,
+      name        VARCHAR(100) NOT NULL,
+      email       VARCHAR(200) NOT NULL,
+      phone       VARCHAR(30)  NULL,
+      note        VARCHAR(300) NULL,
+      payer_email VARCHAR(200) NULL,
+      error_detail VARCHAR(500) NULL,
+      created_at  DATETIME(3)  NOT NULL,
+      INDEX idx_created (created_at)
+    ) CHARACTER SET utf8mb4`
+  );
+  // Tables created by older versions lack error_detail; add it (ignore "duplicate column").
+  await p.query(`ALTER TABLE ${PAYMENTS} ADD COLUMN error_detail VARCHAR(500) NULL`).catch((e) => {
+    if (e?.errno !== 1060) throw e;
+  });
+  await p.query(
+    `CREATE TABLE IF NOT EXISTS ${SETTINGS} (
+      k VARCHAR(50) NOT NULL PRIMARY KEY,
+      v MEDIUMTEXT  NOT NULL
+    ) CHARACTER SET utf8mb4`
+  );
+}
 
 async function db(): Promise<Pool> {
   if (!pool) {
     const mysql = await import("mysql2/promise");
-    pool = mysql.createPool({
+    const p = mysql.createPool({
       host: process.env.DB_HOST,
       port: Number(process.env.DB_PORT ?? 3306),
       user: process.env.DB_USER,
@@ -36,35 +73,18 @@ async function db(): Promise<Pool> {
       timezone: "Z",
       charset: "utf8mb4",
     });
-    ready = pool
-      .query(
-        `CREATE TABLE IF NOT EXISTS payments (
-          order_id    VARCHAR(64)  NOT NULL PRIMARY KEY,
-          capture_id  VARCHAR(64)  NULL,
-          status      VARCHAR(32)  NOT NULL,
-          amount      DECIMAL(12,2) NOT NULL,
-          currency    CHAR(3)      NOT NULL,
-          name        VARCHAR(100) NOT NULL,
-          email       VARCHAR(200) NOT NULL,
-          phone       VARCHAR(30)  NULL,
-          note        VARCHAR(300) NULL,
-          payer_email VARCHAR(200) NULL,
-          created_at  DATETIME(3)  NOT NULL,
-          INDEX idx_created (created_at)
-        ) CHARACTER SET utf8mb4`
-      )
-      .then(() =>
-        pool!.query(
-          `CREATE TABLE IF NOT EXISTS app_settings (
-            k VARCHAR(50) NOT NULL PRIMARY KEY,
-            v MEDIUMTEXT  NOT NULL
-          ) CHARACTER SET utf8mb4`
-        )
-      )
-      .then(() => undefined);
+    pool = p;
+    ready = init(p).catch((e) => {
+      // Don't stay broken after a temporary DB problem: retry on the next request.
+      pool = null;
+      ready = null;
+      p.end().catch(() => {});
+      throw e;
+    });
   }
+  const p = pool;
   await ready;
-  return pool;
+  return p;
 }
 
 type Row = Record<string, unknown>;
@@ -79,6 +99,7 @@ const fromRow = (r: Row): Payment => ({
   phone: (r.phone as string) ?? undefined,
   note: (r.note as string) ?? undefined,
   payerEmail: (r.payer_email as string) ?? undefined,
+  error: (r.error_detail as string) ?? undefined,
   createdAt: new Date(r.created_at as string).toISOString(),
 });
 
@@ -98,13 +119,13 @@ async function readFile(): Promise<Payment[]> {
 // ---------- Public API ----------
 export async function listPayments(): Promise<Payment[]> {
   if (!useMysql()) return readFile();
-  const [rows] = await (await db()).query("SELECT * FROM payments ORDER BY created_at DESC LIMIT 5000");
+  const [rows] = await (await db()).query(`SELECT * FROM ${PAYMENTS} ORDER BY created_at DESC LIMIT 5000`);
   return (rows as Row[]).map(fromRow);
 }
 
 export async function getPayment(orderId: string): Promise<Payment | undefined> {
   if (!useMysql()) return (await readFile()).find((p) => p.orderId === orderId);
-  const [rows] = await (await db()).query("SELECT * FROM payments WHERE order_id = ?", [orderId]);
+  const [rows] = await (await db()).query(`SELECT * FROM ${PAYMENTS} WHERE order_id = ?`, [orderId]);
   const r = (rows as Row[])[0];
   return r ? fromRow(r) : undefined;
 }
@@ -113,14 +134,14 @@ export async function getPayment(orderId: string): Promise<Payment | undefined> 
 export async function savePayment(p: Payment): Promise<void> {
   if (useMysql()) {
     await (await db()).query(
-      `INSERT INTO payments
-        (order_id, capture_id, status, amount, currency, name, email, phone, note, payer_email, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO ${PAYMENTS}
+        (order_id, capture_id, status, amount, currency, name, email, phone, note, payer_email, error_detail, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
         capture_id = VALUES(capture_id), status = VALUES(status), amount = VALUES(amount),
-        currency = VALUES(currency), payer_email = VALUES(payer_email)`,
+        currency = VALUES(currency), payer_email = VALUES(payer_email), error_detail = VALUES(error_detail)`,
       [p.orderId, p.captureId ?? null, p.status, p.amount, p.currency, p.name, p.email,
-       p.phone ?? null, p.note ?? null, p.payerEmail ?? null, new Date(p.createdAt)]
+       p.phone ?? null, p.note ?? null, p.payerEmail ?? null, p.error?.slice(0, 500) ?? null, new Date(p.createdAt)]
     );
     return;
   }
@@ -143,7 +164,7 @@ const kvFile = (k: string) => path.join(DIR, `setting-${k.replace(/[^a-z0-9_-]/g
 
 export async function kvGet(k: string): Promise<string | null> {
   if (!useMysql()) return fs.readFile(kvFile(k), "utf8").catch(() => null);
-  const [rows] = await (await db()).query("SELECT v FROM app_settings WHERE k = ?", [k]);
+  const [rows] = await (await db()).query(`SELECT v FROM ${SETTINGS} WHERE k = ?`, [k]);
   const r = (rows as Row[])[0];
   return r ? String(r.v) : null;
 }
@@ -157,6 +178,6 @@ export async function kvSet(k: string, v: string | null): Promise<void> {
     return;
   }
   const pool = await db();
-  if (v === null) await pool.query("DELETE FROM app_settings WHERE k = ?", [k]);
-  else await pool.query("INSERT INTO app_settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)", [k, v]);
+  if (v === null) await pool.query(`DELETE FROM ${SETTINGS} WHERE k = ?`, [k]);
+  else await pool.query(`INSERT INTO ${SETTINGS} (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)`, [k, v]);
 }

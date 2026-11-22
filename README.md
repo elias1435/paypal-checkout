@@ -31,5 +31,15 @@ and is **lost on every Hostinger deploy**.
 - Rate limits and cross-site checks (Sec-Fetch-Site, proxy-safe) on payment endpoints; amount validated on the server.
 - Security headers: CSP (self + PayPal only), HSTS, no framing, nosniff.
 
+## Troubleshooting payments
+Admin → "בדיקת PayPal" shows which environment/Client ID this site uses, runs a
+connection test (token + an unapproved 1.00 test order, never charged), and lists the
+last PayPal errors with PayPal's code, debug_id and a Hebrew explanation. Failed or
+pending payments also show the reason in the payments table.
+
+## Several sites, one database
+Set a different `DB_TABLE_PREFIX` on each extra site (e.g. `site2_`), otherwise they
+share payments, settings, logo and admin login.
+
 ## Going live
 Set `PAYPAL_ENV=live` (or `production`) and use the **Live** Client ID + Secret.

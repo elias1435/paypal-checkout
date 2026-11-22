@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseAmount } from "@/lib/config";
 import { getSettings } from "@/lib/settings";
-import { createOrder } from "@/lib/paypal";
+import { createOrder, logPayPalError } from "@/lib/paypal";
 import { savePayment } from "@/lib/store";
 import { clientIp, isCrossSite, rateLimit } from "@/lib/ratelimit";
 
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ id: order.id });
   } catch (e) {
-    console.error(e);
+    await logPayPalError(e);
     return NextResponse.json({ error: "לא ניתן ליצור את התשלום, נסו שוב" }, { status: 502 });
   }
 }

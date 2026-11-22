@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { captureOrder } from "@/lib/paypal";
+import { PayPalError, captureOrder, logPayPalError } from "@/lib/paypal";
 import { getPayment, savePayment } from "@/lib/store";
 import { clientIp, isCrossSite, rateLimit } from "@/lib/ratelimit";
 
@@ -17,9 +17,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const result = await captureOrder(id);
     const capture = result.purchase_units?.[0]?.payments?.captures?.[0];
+    const status: string = capture?.status ?? result.status; // COMPLETED / PENDING / DECLINED
+    // PayPal explains PENDING/DECLINED captures in status_details.reason
+    const reason: string | undefined = capture?.status_details?.reason;
     await savePayment({
       ...existing,
-      status: capture?.status ?? result.status, // COMPLETED / PENDING / DECLINED
+      status,
+      error: status === "COMPLETED" ? undefined : reason ? `${status === "PENDING" ? "PENDING:" : ""}${reason}` : undefined,
       captureId: capture?.id,
       amount: capture?.amount?.value ?? existing.amount,
       currency: capture?.amount?.currency_code ?? existing.currency,
@@ -27,8 +31,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
     return NextResponse.json({ status: capture?.status ?? result.status });
   } catch (e) {
-    console.error(e);
-    await savePayment({ ...existing, status: "FAILED" });
+    const logged = await logPayPalError(e, id);
+    await savePayment({ ...existing, status: "FAILED", error: e instanceof PayPalError ? e.summary : logged.code });
     return NextResponse.json({ error: "התשלום לא הושלם" }, { status: 502 });
   }
 }

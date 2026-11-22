@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { listPayments } from "@/lib/store";
+import { explain } from "@/lib/paypal";
 import AdminNav from "./AdminNav";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,15 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                 <td dir="ltr" className="ltr">{p.email}{p.payerEmail && p.payerEmail !== p.email && <div className="hint">PayPal: {p.payerEmail}</div>}</td>
                 <td dir="ltr" className="ltr">{p.phone ?? ""}</td>
                 <td>{money(Number(p.amount), p.currency)}</td>
-                <td><span className={`badge ${p.status}`}>{STATUS[p.status] ?? p.status}</span></td>
+                <td>
+                  <span className={`badge ${p.status}`}>{STATUS[p.status] ?? p.status}</span>
+                  {p.error && (
+                    <div className="pay-err" title={explain(p.error.split(" ")[0]) ?? p.error}>
+                      <code dir="ltr">{p.error.split(" ")[0]}</code>
+                      {explain(p.error.split(" ")[0]) && <div>{explain(p.error.split(" ")[0])}</div>}
+                    </div>
+                  )}
+                </td>
                 <td>{p.note ?? ""}</td>
                 <td dir="ltr" className="ltr hint">{p.captureId ?? p.orderId}</td>
               </tr>
